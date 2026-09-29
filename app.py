@@ -74,6 +74,19 @@ def klaviyo_xml():
     result.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return result
 
+def validate_source():
+    response = requests.get(
+        SOURCE_URL,
+        timeout=30,
+        headers={"User-Agent": "Elementa-Klaviyo-Feed/1.0"},
+    )
+    response.raise_for_status()
+    root = ET.fromstring(response.content)
+    count = len(root.findall(".//product"))
+    print(f"Elementa source check OK - products found: {count}", flush=True)
+
+validate_source()
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))
     app.run(host="0.0.0.0", port=port)
