@@ -118,6 +118,13 @@ def brand_from_characteristics(art):
                 return value
     return "Elementa"
 
+ACTION_DATES_URL = "https://raw.githubusercontent.com/elementasu-webshop/elementa-klaviyo-feed/main/akcije_datumi.json"
+
+def get_action_dates():
+    response = requests.get(ACTION_DATES_URL, timeout=15, headers={"User-Agent": "Elementa-Ananas-Feed/1.0"})
+    response.raise_for_status()
+    return response.json()
+
 def make_razmena():
     response = requests.get(
         RAZMENA_URL,
@@ -133,6 +140,7 @@ def make_razmena():
                 raise ValueError("Source archive has no XML")
             content = archive.read(xml_files[0])
     source_root = ET.fromstring(content)
+    action_dates = get_action_dates()
     out = ET.Element("root")
     articles = ET.SubElement(out, "Artikli")
     for art in source_root.iter("Art"):
@@ -162,6 +170,8 @@ def make_razmena():
                     description_with_characteristics(art) if field == "Opis" else art.attrib[field]
                 )
         if (art.get("MPAkcija") or "").strip().casefold() in ("true", "1", "da", "yes"):
+            if art_id in action_dates:
+                ET.SubElement(item, "MPAkcijaOd").text = action_dates[art_id]
             ET.SubElement(item, "MPAkcijaNovacena").text = (art.get("MPCena") or "").strip()
         ET.SubElement(item, "Brand").text = brand_from_characteristics(art)
         ET.SubElement(item, "slika").text = (
