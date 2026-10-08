@@ -138,7 +138,7 @@ def make_razmena():
     for art in source_root.iter("Art"):
         if art.get("Uvoznik", "").strip() != IMPORTER:
             continue
-        if art.get("VidljivZa", "").strip() != "MP":
+        if art.get("VidljivZa", "").strip() not in ("MP", "VPMP"):
             continue
         art_id = art.get("ArtikalID", "").strip()
         item = ET.SubElement(articles, "Art")
@@ -161,6 +161,8 @@ def make_razmena():
                 ET.SubElement(item, field).text = (
                     description_with_characteristics(art) if field == "Opis" else art.attrib[field]
                 )
+        if (art.get("MPAkcija") or "").strip().casefold() in ("true", "1", "da", "yes"):
+            ET.SubElement(item, "MPAkcijaNovacena").text = (art.get("MPCena") or "").strip()
         ET.SubElement(item, "Brand").text = brand_from_characteristics(art)
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
