@@ -104,8 +104,19 @@ def description_with_characteristics(art):
                 continue
             lines.append(f"• {name}: {value}")
     if lines:
-        return (description + "\n" if description else "") + "\n".join(lines)
+        # Preserve real line breaks in XML and HTML breaks for platform display.
+        return (description + "<br/>\n" if description else "") + "<br/>\n".join(lines)
     return description
+
+def brand_from_characteristics(art):
+    characteristics = art.find("Karakteristike")
+    if characteristics is not None:
+        for characteristic in characteristics.findall("Karakteristika"):
+            name = (characteristic.get("NazivKarakteristike") or "").strip().casefold()
+            value = (characteristic.get("Vrednost") or "").strip()
+            if name in ("brend", "brand", "marka", "robna marka") and value and value != "-":
+                return value
+    return "Elementa"
 
 def make_razmena():
     response = requests.get(
@@ -150,6 +161,7 @@ def make_razmena():
                 ET.SubElement(item, field).text = (
                     description_with_characteristics(art) if field == "Opis" else art.attrib[field]
                 )
+        ET.SubElement(item, "Brand").text = brand_from_characteristics(art)
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
