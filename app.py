@@ -92,6 +92,21 @@ RAZMENA_FIELDS = (
 )
 IMPORTER = "Elementa d.o.o., Subotica"
 
+def description_with_characteristics(art):
+    description = (art.get("Opis") or "").strip()
+    lines = []
+    characteristics = art.find("Karakteristike")
+    if characteristics is not None:
+        for characteristic in characteristics.findall("Karakteristika"):
+            name = (characteristic.get("NazivKarakteristike") or "").strip()
+            value = (characteristic.get("Vrednost") or "").strip()
+            if not name or not value or value == "-":
+                continue
+            lines.append(f"• {name}: {value}")
+    if lines:
+        return (description + "\n" if description else "") + "\n".join(lines)
+    return description
+
 def make_razmena():
     response = requests.get(
         RAZMENA_URL,
@@ -130,7 +145,7 @@ def make_razmena():
             elif field in ("MPLager", "MSLager"):
                 continue
             elif field in art.attrib:
-                ET.SubElement(item, field).text = art.attrib[field]
+                ET.SubElement(item, field).text = (\n                    description_with_characteristics(art) if field == "Opis" else art.attrib[field]\n                )
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
