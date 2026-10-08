@@ -147,7 +147,9 @@ def make_razmena():
             elif field in ("MPLager", "MSLager"):
                 continue
             elif field in art.attrib:
-                ET.SubElement(item, field).text = (\n                    description_with_characteristics(art) if field == "Opis" else art.attrib[field]\n                )
+                ET.SubElement(item, field).text = (
+                    description_with_characteristics(art) if field == "Opis" else art.attrib[field]
+                )
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
