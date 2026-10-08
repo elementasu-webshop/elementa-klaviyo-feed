@@ -77,6 +77,8 @@ def klaviyo_xml():
 
 # Elementa -> partner platform feed. This endpoint reads the source anew
 # on every request, independent of the Klaviyo endpoint above.
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 import zipfile
@@ -170,8 +172,8 @@ def make_razmena():
                     description_with_characteristics(art) if field == "Opis" else art.attrib[field]
                 )
         if (art.get("MPAkcija") or "").strip().casefold() in ("true", "1", "da", "yes"):
-            if art_id in action_dates:
-                ET.SubElement(item, "MPAkcijaOd").text = action_dates[art_id]
+            first_seen = action_dates.get(art_id) or datetime.now(ZoneInfo("Europe/Belgrade")).date().isoformat()
+            ET.SubElement(item, "MPAkcijaOd").text = first_seen
             ET.SubElement(item, "MPAkcijaNovacena").text = (art.get("MPCena") or "").strip()
         ET.SubElement(item, "Brand").text = brand_from_characteristics(art)
         ET.SubElement(item, "slika").text = (
