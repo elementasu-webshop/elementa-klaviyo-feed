@@ -150,6 +150,8 @@ def make_razmena():
             continue
         if art.get("VidljivZa", "").strip() not in ("MP", "VPMP"):
             continue
+        if "outlet" in (art.get("Naziv") or "").casefold():
+            continue
         art_id = art.get("ArtikalID", "").strip()
         item = ET.SubElement(articles, "Art")
         for field in RAZMENA_FIELDS:
