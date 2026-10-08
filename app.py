@@ -74,6 +74,79 @@ def klaviyo_xml():
     result.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return result
 
+
+# Elementa -> partner platform feed. This endpoint reads the source anew
+# on every request, independent of the Klaviyo endpoint above.
+from decimal import Decimal, InvalidOperation
+from io import BytesIO
+import zipfile
+
+RAZMENA_URL = "https://www.elementa.rs/download/razmena.xml"
+RAZMENA_FIELDS = (
+    "ArtikalID", "Sifra", "Naziv", "JM", "MPCena",
+    "VPLager", "MPLager", "MSLager", "PDV", "Opis",
+    "MPAkcija", "MPAkcijado", "MPAkcijaStaracena",
+    "MPAkcijaRabat", "Pakovanje", "VidljivZa", "Garancija",
+    "Uvoznik", "Proizvodjac", "ZemljaPorekla", "ZemljaUvoza",
+    "Barcode",
+)
+IMPORTER = "Elementa d.o.o., Subotica"
+
+def make_razmena():
+    response = requests.get(
+        RAZMENA_URL,
+        timeout=120,
+        headers={"User-Agent": "Elementa-Partner-XML/1.0", "Accept": "application/xml,*/*"},
+    )
+    response.raise_for_status()
+    content = response.content
+    if zipfile.is_zipfile(BytesIO(content)):
+        with zipfile.ZipFile(BytesIO(content)) as archive:
+            xml_files = [name for name in archive.namelist() if name.lower().endswith(".xml")]
+            if not xml_files:
+                raise ValueError("Source archive has no XML")
+            content = archive.read(xml_files[0])
+    source_root = ET.fromstring(content)
+    out = ET.Element("root")
+    articles = ET.SubElement(out, "Artikli")
+    for art in source_root.iter("Art"):
+        if art.get("Uvoznik", "").strip() != IMPORTER:
+            continue
+        art_id = art.get("ArtikalID", "").strip()
+        item = ET.SubElement(articles, "Art")
+        for field in RAZMENA_FIELDS:
+            if field == "VPLager":
+                stock = Decimal("0")
+                for warehouse in ("VPLager", "MPLager", "MSLager"):
+                    value = (art.get(warehouse) or "0").strip().replace(",", ".")
+                    try:
+                        stock += Decimal(value or "0")
+                    except InvalidOperation:
+                        raise ValueError(f"Invalid {warehouse} value for ArtikalID={art_id}")
+                number = format(stock, "f")
+                if "." in number:
+                    number = number.rstrip("0").rstrip(".")
+                ET.SubElement(item, "Kolicina").text = number
+            elif field in ("MPLager", "MSLager"):
+                continue
+            elif field in art.attrib:
+                ET.SubElement(item, field).text = art.attrib[field]
+        ET.SubElement(item, "slika").text = (
+            f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
+        )
+    return ET.tostring(out, encoding="utf-8", xml_declaration=True)
+
+@app.get("/razmena.xml")
+def razmena_xml():
+    try:
+        xml_content = make_razmena()
+    except Exception:
+        app.logger.exception("Failed to generate Elementa partner XML")
+        return Response("Source XML temporarily unavailable", status=503, mimetype="text/plain")
+    result = Response(xml_content, mimetype="application/xml")
+    result.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return result
+
 def validate_source():
     response = requests.get(
         SOURCE_URL,
