@@ -127,6 +127,8 @@ def make_razmena():
     for art in source_root.iter("Art"):
         if art.get("Uvoznik", "").strip() != IMPORTER:
             continue
+        if art.get("VidljivZa", "").strip() != "MP":
+            continue
         art_id = art.get("ArtikalID", "").strip()
         item = ET.SubElement(articles, "Art")
         for field in RAZMENA_FIELDS:
