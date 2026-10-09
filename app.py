@@ -90,7 +90,7 @@ RAZMENA_FIELDS = (
     "MPAkcija", "MPAkcijado", "MPAkcijaStaracena",
     "MPAkcijaRabat", "Pakovanje", "VidljivZa", "Garancija",
     "Uvoznik", "Proizvodjac", "ZemljaPorekla", "ZemljaUvoza",
-    "Barcode",
+    "Barcode", "Duzina", "Visina", "Sirina", "Masa",
 )
 IMPORTER = "Elementa d.o.o., Subotica"
 
@@ -151,6 +151,12 @@ def make_razmena():
         if art.get("VidljivZa", "").strip() not in ("MP", "VPMP"):
             continue
         if "outlet" in (art.get("Naziv") or "").casefold():
+            continue
+        try:
+            price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
+        except InvalidOperation:
+            continue
+        if not price.is_finite() or price <= Decimal("800"):
             continue
         art_id = art.get("ArtikalID", "").strip()
         item = ET.SubElement(articles, "Art")
