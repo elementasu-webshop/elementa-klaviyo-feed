@@ -199,9 +199,14 @@ def make_razmena():
             child.text = marker
     ET.indent(out, space="  ")  # Human-readable XML source with one tag per line.
     result = ET.tostring(out, encoding="utf-8", xml_declaration=True)
-    for marker, value in cdata_values.items():
-        escaped = value.replace("]]>", "]]]]><![CDATA[>")
-        result = result.replace(marker.encode("ascii"), ("<![CDATA[" + escaped + "]]>").encode("utf-8"))
+    # Replace all CDATA placeholders in one pass; repeated bytes.replace
+    # over the whole feed causes worker timeouts on large catalogs.
+    import re
+    def insert_cdata(match):
+        value = cdata_values[match.group().decode("ascii")]
+        safe = value.replace("]]>", "]]]]><![CDATA[>")
+        return ("<![CDATA[" + safe + "]]>").encode("utf-8")
+    result = re.sub(rb"__ANANAS_CDATA_[0-9]+__", insert_cdata, result)
     return result
 
 @app.get("/razmena.xml")
