@@ -148,7 +148,7 @@ def make_razmena():
     action_dates = get_action_dates()
     out = ET.Element("root")
     articles = ET.SubElement(out, "Artikli")
-    cdata_descriptions = {}
+    cdata_values = {}
     for art in source_root.iter("Art"):
         if art.get("Uvoznik", "").strip() != IMPORTER:
             continue
@@ -180,13 +180,9 @@ def make_razmena():
             elif field in ("MPLager", "MSLager"):
                 continue
             elif field in art.attrib:
-                if field == "Opis":
-                    # Replace unique placeholders with literal CDATA after XML serialization.
-                    marker = f"__ANANAS_DESCRIPTION_{len(cdata_descriptions)}__"
-                    cdata_descriptions[marker] = description_with_characteristics(art)
-                    ET.SubElement(item, field).text = marker
-                else:
-                    ET.SubElement(item, field).text = art.attrib[field]
+                ET.SubElement(item, field).text = (
+                    description_with_characteristics(art) if field == "Opis" else art.attrib[field]
+                )
         if (art.get("MPAkcija") or "").strip().casefold() in ("true", "1", "da", "yes"):
             first_seen = action_dates.get(art_id) or datetime.now(ZoneInfo("Europe/Belgrade")).date().isoformat()
             ET.SubElement(item, "MPAkcijaOd").text = datetime.strptime(first_seen, "%Y-%m-%d").strftime("%d/%m/%Y")
@@ -195,10 +191,16 @@ def make_razmena():
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
+    # Serialize all direct Art child element values as CDATA, including empty values.
+    for item in articles.findall("Art"):
+        for child in item:
+            marker = f"__ANANAS_CDATA_{len(cdata_values)}__"
+            cdata_values[marker] = child.text or ""
+            child.text = marker
     result = ET.tostring(out, encoding="utf-8", xml_declaration=True)
-    for marker, description in cdata_descriptions.items():
-        safe_description = description.replace("]]>", "]]]]><![CDATA[>")
-        result = result.replace(marker.encode("ascii"), ("<![CDATA[" + safe_description + "]]>").encode("utf-8"))
+    for marker, value in cdata_values.items():
+        escaped = value.replace("]]>", "]]]]><![CDATA[>")
+        result = result.replace(marker.encode("ascii"), ("<![CDATA[" + escaped + "]]>").encode("utf-8"))
     return result
 
 @app.get("/razmena.xml")
