@@ -197,6 +197,7 @@ def make_razmena():
             marker = f"__ANANAS_CDATA_{len(cdata_values)}__"
             cdata_values[marker] = child.text or ""
             child.text = marker
+    ET.indent(out, space="  ")  # Human-readable XML source with one tag per line.
     result = ET.tostring(out, encoding="utf-8", xml_declaration=True)
     for marker, value in cdata_values.items():
         escaped = value.replace("]]>", "]]]]><![CDATA[>")
