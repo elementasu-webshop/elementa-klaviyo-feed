@@ -95,7 +95,11 @@ RAZMENA_FIELDS = (
 IMPORTER = "Elementa d.o.o., Subotica"
 
 def description_with_characteristics(art):
+    import re
     description = (art.get("Opis") or "").strip()
+    # Source descriptions sometimes have HTML breaks, sometimes literal line breaks.
+    description = re.sub(r"<br\\s*/?>", "\\n", description, flags=re.IGNORECASE)
+    description = description.replace("\\r\\n", "\\n").replace("\\r", "\\n")
     lines = []
     characteristics = art.find("Karakteristike")
     if characteristics is not None:
@@ -106,8 +110,7 @@ def description_with_characteristics(art):
                 continue
             lines.append(f"• {name}: {value}")
     if lines:
-        # Preserve real line breaks in XML and HTML breaks for platform display.
-        return (description + "<br/>\n" if description else "") + "<br/>\n".join(lines)
+        return (description + "\\n\\n" if description else "") + "Tehnički podaci:\\n" + "\\n".join(lines)
     return description
 
 def brand_from_characteristics(art):
@@ -145,6 +148,7 @@ def make_razmena():
     action_dates = get_action_dates()
     out = ET.Element("root")
     articles = ET.SubElement(out, "Artikli")
+    cdata_descriptions = {}
     for art in source_root.iter("Art"):
         if art.get("Uvoznik", "").strip() != IMPORTER:
             continue
@@ -176,9 +180,13 @@ def make_razmena():
             elif field in ("MPLager", "MSLager"):
                 continue
             elif field in art.attrib:
-                ET.SubElement(item, field).text = (
-                    description_with_characteristics(art) if field == "Opis" else art.attrib[field]
-                )
+                if field == "Opis":
+                    # Replace unique placeholders with literal CDATA after XML serialization.
+                    marker = f"__ANANAS_DESCRIPTION_{len(cdata_descriptions)}__"
+                    cdata_descriptions[marker] = description_with_characteristics(art)
+                    ET.SubElement(item, field).text = marker
+                else:
+                    ET.SubElement(item, field).text = art.attrib[field]
         if (art.get("MPAkcija") or "").strip().casefold() in ("true", "1", "da", "yes"):
             first_seen = action_dates.get(art_id) or datetime.now(ZoneInfo("Europe/Belgrade")).date().isoformat()
             ET.SubElement(item, "MPAkcijaOd").text = datetime.strptime(first_seen, "%Y-%m-%d").strftime("%d/%m/%Y")
@@ -187,7 +195,11 @@ def make_razmena():
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
-    return ET.tostring(out, encoding="utf-8", xml_declaration=True)
+    result = ET.tostring(out, encoding="utf-8", xml_declaration=True)
+    for marker, description in cdata_descriptions.items():
+        safe_description = description.replace("]]>", "]]]]><![CDATA[>")
+        result = result.replace(marker.encode("ascii"), ("<![CDATA[" + safe_description + "]]>").encode("utf-8"))
+    return result
 
 @app.get("/razmena.xml")
 def razmena_xml():
