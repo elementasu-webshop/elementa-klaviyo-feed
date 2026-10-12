@@ -149,7 +149,10 @@ def make_razmena():
     out = ET.Element("root")
     articles = ET.SubElement(out, "Artikli")
     cdata_values = {}
+    source_count = 0
+    filtered_count = 0
     for art in source_root.iter("Art"):
+        source_count += 1
         if art.get("Uvoznik", "").strip() != IMPORTER:
             continue
         if art.get("VidljivZa", "").strip() not in ("MP", "VPMP"):
@@ -162,6 +165,7 @@ def make_razmena():
             continue
         if not price.is_finite() or price <= Decimal("800"):
             continue
+        filtered_count += 1
         art_id = art.get("ArtikalID", "").strip()
         item = ET.SubElement(articles, "Art")
         for field in RAZMENA_FIELDS:
@@ -191,6 +195,7 @@ def make_razmena():
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
+    app.logger.info("Ananas source razmena.xml: %d articles; after filters: %d", source_count, filtered_count)
     # Serialize all direct Art child element values as CDATA, including empty values.
     for item in articles.findall("Art"):
         for child in item:
@@ -231,7 +236,7 @@ def validate_source():
     count = len(root.findall(".//product"))
     print(f"Elementa source check OK - products found: {count}", flush=True)
 
-validate_source()
+# No unrelated Klaviyo source fetch when starting Ananas service.
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", "10000"))
