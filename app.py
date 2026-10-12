@@ -98,8 +98,8 @@ def description_with_characteristics(art):
     import re
     description = (art.get("Opis") or "").strip()
     # Source descriptions sometimes have HTML breaks, sometimes literal line breaks.
-    description = re.sub(r"<br\\s*/?>", "\\n", description, flags=re.IGNORECASE)
-    description = description.replace("\\r\\n", "\\n").replace("\\r", "\\n")
+    description = re.sub(r"<br\s*/?>", "\n", description, flags=re.IGNORECASE)
+    description = description.replace("\r\n", "\n").replace("\r", "\n")
     lines = []
     characteristics = art.find("Karakteristike")
     if characteristics is not None:
@@ -110,7 +110,7 @@ def description_with_characteristics(art):
                 continue
             lines.append(f"• {name}: {value}")
     if lines:
-        return (description + "\\n\\n" if description else "") + "Tehnički podaci:\\n" + "\\n".join(lines)
+        return (description + "\n\n" if description else "") + "Tehnički podaci:\n" + "\n".join(lines)
     return description
 
 def brand_from_characteristics(art):
