@@ -198,3 +198,41 @@ def razmena_xml():
     result.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     return result
 
+
+# One-time source audit at process startup; does not change feed output.
+def audit_parent_exclusions():
+    try:
+        import threading
+        response = requests.get(RAZMENA_URL, timeout=90)
+        response.raise_for_status()
+        payload = response.content
+        if zipfile.is_zipfile(BytesIO(payload)):
+            with zipfile.ZipFile(BytesIO(payload)) as archive:
+                entries = [n for n in archive.namelist() if n.lower().endswith(".xml")]
+                if not entries:
+                    raise ValueError("No XML in source archive")
+                payload = archive.read(entries[0])
+        root = ET.fromstring(payload)
+        total = matches = otherwise_eligible = 0
+        for art in root.iter("Art"):
+            total += 1
+            parent = (art.findtext("parent") or art.get("parent") or "").strip()
+            if parent not in EXCLUDED_PARENT_IDS:
+                continue
+            matches += 1
+            if (art.get("Uvoznik", "").strip() != IMPORTER
+                or art.get("VidljivZa", "").strip() not in ("MP", "VPMP")
+                or "outlet" in (art.get("Naziv") or "").casefold()):
+                continue
+            try:
+                price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
+            except InvalidOperation:
+                continue
+            if price.is_finite() and price > Decimal("800"):
+                otherwise_eligible += 1
+        print(f"ANANAS_PARENT_AUDIT total={total} parent_matches={matches} additional_excluded={otherwise_eligible}", flush=True)
+    except Exception as exc:
+        print(f"ANANAS_PARENT_AUDIT failed: {type(exc).__name__}: {exc}", flush=True)
+
+import threading
+threading.Thread(target=audit_parent_exclusions, daemon=True).start()
