@@ -112,6 +112,7 @@ def make_razmena():
     cdata_values = {}
     source_count = 0
     filtered_count = 0
+    excluded_by_parent = 0
     for art in source_root.iter("Art"):
         source_count += 1
         if art.get("Uvoznik", "").strip() != IMPORTER:
@@ -123,6 +124,7 @@ def make_razmena():
         # The source may supply parent as a child tag or as an attribute.
         parent = (art.findtext("parent") or art.get("parent") or "").strip()
         if parent in EXCLUDED_PARENT_IDS:
+            excluded_by_parent += 1
             continue
         try:
             price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
@@ -166,7 +168,7 @@ def make_razmena():
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
-    app.logger.info("Ananas source razmena.xml: %d articles; after filters: %d", source_count, filtered_count)
+    app.logger.info("Ananas source razmena.xml: %d articles; after filters: %d; excluded by parent filter: %d", source_count, filtered_count, excluded_by_parent)
     # Serialize all direct Art child element values as CDATA, including empty values.
     for item in articles.findall("Art"):
         for child in item:
