@@ -112,9 +112,15 @@ def make_razmena():
             elif field in ("MPLager", "MSLager"):
                 continue
             elif field in art.attrib:
-                ET.SubElement(item, field).text = (
-                    description_with_characteristics(art) if field == "Opis" else art.attrib[field]
-                )
+                if field == "Naziv":
+                    naziv = (art.get("Naziv") or "").strip()
+                    sifra = (art.get("Sifra") or "").strip()
+                    value = f"{naziv} {sifra}".strip()
+                elif field == "Opis":
+                    value = description_with_characteristics(art)
+                else:
+                    value = art.attrib[field]
+                ET.SubElement(item, field).text = value
         if (art.get("MPAkcija") or "").strip().casefold() in ("true", "1", "da", "yes"):
             first_seen = action_dates.get(art_id) or datetime.now(ZoneInfo("Europe/Belgrade")).date().isoformat()
             ET.SubElement(item, "MPAkcijaOd").text = datetime.strptime(first_seen, "%Y-%m-%d").strftime("%d/%m/%Y")
