@@ -213,6 +213,27 @@ def audit_parent_exclusions():
                     raise ValueError("No XML in source archive")
                 payload = archive.read(entries[0])
         root = ET.fromstring(payload)
+        # Diagnose how parent IDs are represented in the source schema.
+        from collections import Counter
+        parent_tags = Counter()
+        parent_values = Counter()
+        examples = []
+        matching_nodes = []
+        for node in root.iter():
+            local_tag = node.tag.rsplit("}", 1)[-1].lower() if isinstance(node.tag, str) else ""
+            if local_tag == "parent":
+                value = (node.text or "").strip()
+                parent_tags[value] += 1
+                if value in EXCLUDED_PARENT_IDS and len(matching_nodes) < 3:
+                    matching_nodes.append(("tag", value))
+            for key, value in node.attrib.items():
+                if "parent" in key.lower():
+                    parent_values[value.strip()] += 1
+                    if value.strip() in EXCLUDED_PARENT_IDS and len(matching_nodes) < 3:
+                        matching_nodes.append(("attr", node.tag, key, value))
+            if len(examples) < 2 and local_tag == "art":
+                examples.append((list(node.attrib.keys())[:35], [c.tag for c in node][:20]))
+        print(f"ANANAS_PARENT_SCHEMA tag_count={sum(parent_tags.values())} tag_examples={parent_tags.most_common(8)} attr_count={sum(parent_values.values())} attr_examples={parent_values.most_common(8)} matching={matching_nodes} art_examples={examples}", flush=True)
         total = matches = otherwise_eligible = 0
         for art in root.iter("Art"):
             total += 1
