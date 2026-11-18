@@ -21,6 +21,39 @@ RAZMENA_FIELDS = (
     "Barcode", "Duzina", "Visina", "Sirina", "Masa",
 )
 IMPORTER = "Elementa d.o.o., Subotica"
+EXCLUDED_PARENT_IDS = {
+    "10748",
+    "10749",
+    "10750",
+    "10751",
+    "10752",
+    "10753",
+    "10754",
+    "10755",
+    "10756",
+    "10758",
+    "10759",
+    "10760",
+    "10761",
+    "10762",
+    "10763",
+    "10764",
+    "10765",
+    "10766",
+    "10767",
+    "10768",
+    "10769",
+    "10770",
+    "10771",
+    "10772",
+    "10773",
+    "10774",
+    "10775",
+    "10776",
+    "10777",
+    "10778",
+    "10779",
+}
 
 def description_with_characteristics(art):
     import re
@@ -86,6 +119,10 @@ def make_razmena():
         if art.get("VidljivZa", "").strip() not in ("MP", "VPMP"):
             continue
         if "outlet" in (art.get("Naziv") or "").casefold():
+            continue
+        # The source may supply parent as a child tag or as an attribute.
+        parent = (art.findtext("parent") or art.get("parent") or "").strip()
+        if parent in EXCLUDED_PARENT_IDS:
             continue
         try:
             price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
