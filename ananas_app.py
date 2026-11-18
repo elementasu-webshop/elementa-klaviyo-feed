@@ -213,13 +213,15 @@ def audit_category_exclusions():
                     raise ValueError("No XML in source archive")
                 payload = archive.read(entries[0])
         root = ET.fromstring(payload)
-        total = matched = otherwise_eligible = 0
+        total = matched = otherwise_eligible = remaining = 0
         for art in root.iter("Art"):
             total += 1
-            if not any((c.get("IDKategorije") or "").strip() in EXCLUDED_CATEGORY_IDS
-                       for c in art.iter("Kategorija")):
-                continue
-            matched += 1
+            excluded_category = any(
+                (c.get("IDKategorije") or "").strip() in EXCLUDED_CATEGORY_IDS
+                for c in art.iter("Kategorija")
+            )
+            if excluded_category:
+                matched += 1
             if (art.get("Uvoznik", "").strip() != IMPORTER
                 or art.get("VidljivZa", "").strip() not in ("MP", "VPMP")
                 or "outlet" in (art.get("Naziv") or "").casefold()):
@@ -228,9 +230,13 @@ def audit_category_exclusions():
                 price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
             except InvalidOperation:
                 continue
-            if price.is_finite() and price > Decimal("800"):
+            if not price.is_finite() or price <= Decimal("800"):
+                continue
+            if excluded_category:
                 otherwise_eligible += 1
-        print(f"ANANAS_CATEGORY_AUDIT total={total} category_matches={matched} additional_excluded={otherwise_eligible}", flush=True)
+            else:
+                remaining += 1
+        print(f"ANANAS_CATEGORY_AUDIT total={total} category_matches={matched} additional_excluded={otherwise_eligible} remaining={remaining}", flush=True)
     except Exception as exc:
         print(f"ANANAS_CATEGORY_AUDIT failed: {type(exc).__name__}: {exc}", flush=True)
 
