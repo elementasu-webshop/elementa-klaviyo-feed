@@ -21,7 +21,7 @@ RAZMENA_FIELDS = (
     "Barcode", "Duzina", "Visina", "Sirina", "Masa",
 )
 IMPORTER = "Elementa d.o.o., Subotica"
-EXCLUDED_PARENT_IDS = {
+EXCLUDED_CATEGORY_IDS = {
     "10748",
     "10749",
     "10750",
@@ -112,7 +112,7 @@ def make_razmena():
     cdata_values = {}
     source_count = 0
     filtered_count = 0
-    excluded_by_parent = 0
+    excluded_by_category = 0
     for art in source_root.iter("Art"):
         source_count += 1
         if art.get("Uvoznik", "").strip() != IMPORTER:
@@ -121,10 +121,11 @@ def make_razmena():
             continue
         if "outlet" in (art.get("Naziv") or "").casefold():
             continue
-        # The source may supply parent as a child tag or as an attribute.
-        parent = (art.findtext("parent") or art.get("parent") or "").strip()
-        if parent in EXCLUDED_PARENT_IDS:
-            excluded_by_parent += 1
+        if any(
+            (category.get("IDKategorije") or "").strip() in EXCLUDED_CATEGORY_IDS
+            for category in art.iter("Kategorija")
+        ):
+            excluded_by_category += 1
             continue
         try:
             price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
@@ -168,7 +169,7 @@ def make_razmena():
         ET.SubElement(item, "slika").text = (
             f"https://www.elementa.rs/images/products/{art_id}/original/1.jpg"
         )
-    app.logger.info("Ananas source razmena.xml: %d articles; after filters: %d; excluded by parent filter: %d", source_count, filtered_count, excluded_by_parent)
+    app.logger.info("Ananas source razmena.xml: %d articles; after filters: %d; excluded by category filter: %d", source_count, filtered_count, excluded_by_category)
     # Serialize all direct Art child element values as CDATA, including empty values.
     for item in articles.findall("Art"):
         for child in item:
@@ -199,10 +200,9 @@ def razmena_xml():
     return result
 
 
-# One-time source audit at process startup; does not change feed output.
-def audit_parent_exclusions():
+# Audit the current source when the Ananas service starts.
+def audit_category_exclusions():
     try:
-        import threading
         response = requests.get(RAZMENA_URL, timeout=90)
         response.raise_for_status()
         payload = response.content
@@ -213,34 +213,13 @@ def audit_parent_exclusions():
                     raise ValueError("No XML in source archive")
                 payload = archive.read(entries[0])
         root = ET.fromstring(payload)
-        # Diagnose how parent IDs are represented in the source schema.
-        from collections import Counter
-        parent_tags = Counter()
-        parent_values = Counter()
-        examples = []
-        matching_nodes = []
-        for node in root.iter():
-            local_tag = node.tag.rsplit("}", 1)[-1].lower() if isinstance(node.tag, str) else ""
-            if local_tag == "parent":
-                value = (node.text or "").strip()
-                parent_tags[value] += 1
-                if value in EXCLUDED_PARENT_IDS and len(matching_nodes) < 3:
-                    matching_nodes.append(("tag", value))
-            for key, value in node.attrib.items():
-                if "parent" in key.lower():
-                    parent_values[value.strip()] += 1
-                    if value.strip() in EXCLUDED_PARENT_IDS and len(matching_nodes) < 3:
-                        matching_nodes.append(("attr", node.tag, key, value))
-            if len(examples) < 2 and local_tag == "art":
-                examples.append((list(node.attrib.keys())[:35], [c.tag for c in node][:20]))
-        print(f"ANANAS_PARENT_SCHEMA tag_count={sum(parent_tags.values())} tag_examples={parent_tags.most_common(8)} attr_count={sum(parent_values.values())} attr_examples={parent_values.most_common(8)} matching={matching_nodes} art_examples={examples}", flush=True)
-        total = matches = otherwise_eligible = 0
+        total = matched = otherwise_eligible = 0
         for art in root.iter("Art"):
             total += 1
-            parent = (art.findtext("parent") or art.get("parent") or "").strip()
-            if parent not in EXCLUDED_PARENT_IDS:
+            if not any((c.get("IDKategorije") or "").strip() in EXCLUDED_CATEGORY_IDS
+                       for c in art.iter("Kategorija")):
                 continue
-            matches += 1
+            matched += 1
             if (art.get("Uvoznik", "").strip() != IMPORTER
                 or art.get("VidljivZa", "").strip() not in ("MP", "VPMP")
                 or "outlet" in (art.get("Naziv") or "").casefold()):
@@ -251,9 +230,9 @@ def audit_parent_exclusions():
                 continue
             if price.is_finite() and price > Decimal("800"):
                 otherwise_eligible += 1
-        print(f"ANANAS_PARENT_AUDIT total={total} parent_matches={matches} additional_excluded={otherwise_eligible}", flush=True)
+        print(f"ANANAS_CATEGORY_AUDIT total={total} category_matches={matched} additional_excluded={otherwise_eligible}", flush=True)
     except Exception as exc:
-        print(f"ANANAS_PARENT_AUDIT failed: {type(exc).__name__}: {exc}", flush=True)
+        print(f"ANANAS_CATEGORY_AUDIT failed: {type(exc).__name__}: {exc}", flush=True)
 
 import threading
-threading.Thread(target=audit_parent_exclusions, daemon=True).start()
+threading.Thread(target=audit_category_exclusions, daemon=True).start()
