@@ -21,6 +21,7 @@ RAZMENA_FIELDS = (
     "Barcode", "Duzina", "Visina", "Sirina", "Masa",
 )
 IMPORTER = "Elementa d.o.o., Subotica"
+EXCLUDED_SKU_FRAGMENTS = ("OUT1", "OUT2", "OUT3")
 EXCLUDED_CATEGORY_IDS = {
     "10748",
     "10749",
@@ -120,6 +121,8 @@ def make_razmena():
         if art.get("VidljivZa", "").strip() not in ("MP", "VPMP"):
             continue
         if "outlet" in (art.get("Naziv") or "").casefold():
+            continue
+        if any(fragment in (art.get("Sifra") or "").upper() for fragment in EXCLUDED_SKU_FRAGMENTS):
             continue
         if any(
             (category.get("IDKategorije") or "").strip() in EXCLUDED_CATEGORY_IDS
@@ -224,7 +227,8 @@ def audit_category_exclusions():
                 matched += 1
             if (art.get("Uvoznik", "").strip() != IMPORTER
                 or art.get("VidljivZa", "").strip() not in ("MP", "VPMP")
-                or "outlet" in (art.get("Naziv") or "").casefold()):
+                or "outlet" in (art.get("Naziv") or "").casefold()
+                or any(fragment in (art.get("Sifra") or "").upper() for fragment in EXCLUDED_SKU_FRAGMENTS)):
                 continue
             try:
                 price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
