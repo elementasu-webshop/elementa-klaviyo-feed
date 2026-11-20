@@ -56,6 +56,16 @@ EXCLUDED_CATEGORY_IDS = {
     "10779",
 }
 
+def excluded_by_packaging(art):
+    raw = (art.get("Pakovanje") or "").strip().replace(",", ".")
+    if not raw:
+        return False
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return False
+    return value.is_finite() and value >= Decimal("2")
+
 def description_with_characteristics(art):
     import re
     description = (art.get("Opis") or "").strip()
@@ -124,6 +134,8 @@ def make_razmena():
             continue
         if any(fragment in (art.get("Sifra") or "").upper() for fragment in EXCLUDED_SKU_FRAGMENTS):
             continue
+        if excluded_by_packaging(art):
+            continue
         if any(
             (category.get("IDKategorije") or "").strip() in EXCLUDED_CATEGORY_IDS
             for category in art.iter("Kategorija")
@@ -134,7 +146,7 @@ def make_razmena():
             price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
         except InvalidOperation:
             continue
-        if not price.is_finite() or price <= Decimal("800"):
+        if not price.is_finite() or price <= Decimal("1000"):
             continue
         filtered_count += 1
         art_id = art.get("ArtikalID", "").strip()
@@ -228,13 +240,14 @@ def audit_category_exclusions():
             if (art.get("Uvoznik", "").strip() != IMPORTER
                 or art.get("VidljivZa", "").strip() not in ("MP", "VPMP")
                 or "outlet" in (art.get("Naziv") or "").casefold()
-                or any(fragment in (art.get("Sifra") or "").upper() for fragment in EXCLUDED_SKU_FRAGMENTS)):
+                or any(fragment in (art.get("Sifra") or "").upper() for fragment in EXCLUDED_SKU_FRAGMENTS)
+                or excluded_by_packaging(art)):
                 continue
             try:
                 price = Decimal((art.get("MPCena") or "").strip().replace(",", "."))
             except InvalidOperation:
                 continue
-            if not price.is_finite() or price <= Decimal("800"):
+            if not price.is_finite() or price <= Decimal("1000"):
                 continue
             if excluded_category:
                 otherwise_eligible += 1
